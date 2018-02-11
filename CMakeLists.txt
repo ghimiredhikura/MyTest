@@ -1,0 +1,5 @@
+cmake_minimum_required(VERSION 2.8)
+project( hand_gesture )
+find_package( OpenCV REQUIRED )
+add_executable( hand_gesture hand_gesture.cpp )
+target_link_libraries(hand_gesture ${OpenCV_LIBS} )
