@@ -1,158 +1,126 @@
-#include <opencv/cv.h>
-#include <opencv/cxcore.h>
-#include <opencv/highgui.h>
+#include "opencv2/imgproc/imgproc.hpp"
+#include <opencv2/highgui/highgui.hpp>
 #include <iostream>
 
-using namespace std;
 using namespace cv;
+using namespace std;
 
-int main()
+int main( int argc, const char** argv)
 {
-	int c = 0;
-	CvCapture* capture = cvCaptureFromCAM(0);
-	if(!cvQueryFrame(capture))
-	{
-		cout<<"Video camera capture status: OK"<<endl;
-	}
-	else
-	{
-		cout<<"Video capture failed, please check the camera."<<endl;
-	}
-	
-        CvSize sz = cvGetSize(cvQueryFrame( capture));
-	cout << "Height & width of captured frame: " << sz.height <<" x " << sz.width;
-	IplImage* src    = cvCreateImage( sz,8, 3 );
-	IplImage* gray   = cvCreateImage( cvSize(270,270),8, 1 );
-	
-	while( c != 27)
-	{
-		src = cvQueryFrame(capture);
-		cvSetImageROI(src, cvRect(340,100,270,270));
-		cvCvtColor(src,gray,CV_BGR2GRAY);
-		cvSmooth(gray,gray,CV_BLUR,(12,12),0);
-		cvNamedWindow( "Blur",1);cvShowImage( "Blur",gray);   // blur-not-clear
-		cvThreshold(gray,gray,0,255,(CV_THRESH_BINARY_INV+CV_THRESH_OTSU));
-		cvNamedWindow( "Threshold",1);cvShowImage( "Threshold",gray);  // black-white
-		CvMemStorage* storage = cvCreateMemStorage();
-		CvSeq* first_contour = NULL;
-		CvSeq* maxitem=NULL;
-		int cn=cvFindContours(gray,storage,&first_contour,sizeof(CvContour),CV_RETR_CCOMP,CV_CHAIN_APPROX_SIMPLE,cvPoint(0,0));
-		double area,max_area=0.0;
-		CvSeq* ptr=0;
-		//int maxn=0,n=0;
-		if(cn>0)
-		{
-			for(ptr=first_contour;ptr!=NULL;ptr=ptr->h_next)
-			{
-				area=fabs(cvContourArea(ptr,CV_WHOLE_SEQ,0));
-				if(area>max_area)
-				{
-					max_area=area;
-					maxitem=ptr;
-					//maxn=n;
-				}
-				// n++;
-			}
-			if(max_area > 1000)
-			{
-				CvPoint pt0;
-				CvMemStorage* storage1 = cvCreateMemStorage();
-				CvMemStorage* storage2 = cvCreateMemStorage(0);
-				CvSeq* ptseq = cvCreateSeq( CV_SEQ_KIND_GENERIC|CV_32SC2, sizeof(CvContour),sizeof(CvPoint), storage1 );
-				CvSeq* hull;
-				CvSeq* defects;
-				for(int i = 0; i < maxitem->total; i++ )
-				{
-					CvPoint* p = CV_GET_SEQ_ELEM( CvPoint, maxitem, i );
-					pt0.x = p->x;
-					pt0.y = p->y;
-					cvSeqPush( ptseq, &pt0 );
-				}
-				hull = cvConvexHull2( ptseq, 0, CV_CLOCKWISE, 0 );
-				int hullcount = hull->total;
-				defects= cvConvexityDefects(ptseq,hull,storage2  );
-				// pt0 = **CV_GET_SEQ_ELEM( CvPoint*, hull, hullcount - 1 );
-				// printf("** : %d :**",hullcount);
-				CvConvexityDefect* defectArray;
-				// int j=0;
-				for(int i = 1; i <= hullcount; i++ )
-				{
-					CvPoint pt = **CV_GET_SEQ_ELEM( CvPoint*, hull, i );
-					cvLine( src, pt0, pt, CV_RGB( 255, 0, 0 ), 1, CV_AA, 0 );
-					pt0 = pt;
-				}
-				for( ; defects; defects = defects->h_next)  
-				{
-					int nomdef = defects->total; // defect amount
-					// outlet_float( m_nomdef, nomdef );
-					// printf(" defect no %d \n",nomdef);
-					if(nomdef == 0)
-					continue;
-					// Alloc memory for defect set.
-					// fprintf(stderr,"malloc\n");
-					defectArray = (CvConvexityDefect*)malloc(sizeof(CvConvexityDefect)*nomdef);
-					// Get defect set.
-					// fprintf(stderr,"cvCvtSeqToArray\n");
-					cvCvtSeqToArray(defects,defectArray, CV_WHOLE_SEQ);
-					// Draw marks for all defects.
-					int con=0;
-					for(int i=0; i<nomdef; i++)
-					{
-						if(defectArray[i].depth > 40 )
-						{
-							con=con+1;
-							// printf(" defect depth for defect %d %f \n",i,defectArray[i].depth);
-							cvLine(src, *(defectArray[i].start), *(defectArray[i].depth_point),CV_RGB(255,255,0),1, CV_AA, 0 );  
-							cvCircle( src, *(defectArray[i].depth_point), 5, CV_RGB(0,0,255), 2, 8,0);
-							cvCircle( src, *(defectArray[i].start), 5, CV_RGB(0,255,0), 2, 8,0);  
-							cvLine(src, *(defectArray[i].depth_point), *(defectArray[i].end),CV_RGB(0,255,255),1, CV_AA, 0 );  
-							cvDrawContours(src,defects,CV_RGB(0,0,0),CV_RGB(255,0,0),-1,CV_FILLED,8);
-						}
-					}
-					// cout<<con<<"\n";
-					char txt[40]="";
-					if(con==1)
-					{
-						char txt1[]="Hi , This is Udit";
-						strcat(txt,txt1);
-					}
-					else if(con==2)
-					{
-						char txt1[]="3 Musketeers";
-						strcat(txt,txt1);
-					}
-					else if(con==3)
-					{
-						char txt1[]="Fanatastic 4";
-						strcat(txt,txt1);
-					}
-					else if(con==4)
-					{
-						char txt1[]="It's 5";
-						strcat(txt,txt1);
-					}
-					else
-					{
-						char txt1[]="Jarvis is busy :P"; // Jarvis can't recognise you
-						strcat(txt,txt1);
-					}
-					cvNamedWindow( "contour",1);cvShowImage( "contour",src);
-					cvResetImageROI(src);
-					CvFont font;
-					cvInitFont(&font, CV_FONT_HERSHEY_SIMPLEX, 1.5, 1.5, 0, 5, CV_AA);
-					cvPutText(src, txt, cvPoint(50, 50), &font, cvScalar(0, 0, 255, 0));
-					// j++;  
-					// Free memory.
-					free(defectArray);
-				} 
-				cvReleaseMemStorage( &storage1 );
-				cvReleaseMemStorage( &storage2 );
-			}
-		}
-		cvReleaseMemStorage( &storage );
-		cvNamedWindow( "threshold",1);cvShowImage( "threshold",src);
-		c = cvWaitKey(100);
-	}
-	cvReleaseCapture( &capture);
-	cvDestroyAllWindows();
+    VideoCapture cam(0);
+    if(!cam.isOpened()){
+        cout<<"ERROR not opened "<< endl;
+        return -1;
+    }
+    Mat img;
+    Mat img_threshold;
+    Mat img_gray;
+    Mat img_roi;
+    namedWindow("Original_image",CV_WINDOW_AUTOSIZE);
+    namedWindow("Gray_image",CV_WINDOW_AUTOSIZE);
+    namedWindow("Thresholded_image",CV_WINDOW_AUTOSIZE);
+    namedWindow("ROI",CV_WINDOW_AUTOSIZE);
+    char a[40];
+    int count =0;
+    while(1){
+        bool b=cam.read(img);
+        if(!b){
+            cout<<"ERROR : cannot read"<<endl;
+            return -1;
+        }
+        cv::flip(img, img, 1);
+        Rect roi(340,100,270,270);
+        img_roi=img(roi);
+        cvtColor(img_roi,img_gray,CV_RGB2GRAY);
+
+        GaussianBlur(img_gray,img_gray,Size(19,19),0.0,0);
+        threshold(img_gray,img_threshold,0,255,THRESH_BINARY_INV+THRESH_OTSU);
+
+        vector<vector<Point> >contours;
+        vector<Vec4i>hierarchy;
+        findContours(img_threshold,contours,hierarchy,CV_RETR_EXTERNAL,CV_CHAIN_APPROX_SIMPLE,Point());
+        if(contours.size()>0){
+                size_t indexOfBiggestContour = -1;
+	            size_t sizeOfBiggestContour = 0;
+
+	            for (size_t i = 0; i < contours.size(); i++){
+		           if(contours[i].size() > sizeOfBiggestContour){
+			       sizeOfBiggestContour = contours[i].size();
+			       indexOfBiggestContour = i;
+		          }
+                }
+                vector<vector<int> >hull(contours.size());
+                vector<vector<Point> >hullPoint(contours.size());
+                vector<vector<Vec4i> >defects(contours.size());
+                vector<vector<Point> >defectPoint(contours.size());
+                vector<vector<Point> >contours_poly(contours.size());
+                Point2f rect_point[4];
+                vector<RotatedRect>minRect(contours.size());
+                vector<Rect> boundRect(contours.size());
+                for(size_t i=0;i<contours.size();i++){
+                    if(contourArea(contours[i])>5000){
+                        convexHull(contours[i],hull[i],true);
+                        convexityDefects(contours[i],hull[i],defects[i]);
+                        if(indexOfBiggestContour==i){
+                            minRect[i]=minAreaRect(contours[i]);
+                            for(size_t k=0;k<hull[i].size();k++){
+                                int ind=hull[i][k];
+                                hullPoint[i].push_back(contours[i][ind]);
+                            }
+                            count =0;
+
+                            for(size_t k=0;k<defects[i].size();k++){
+                                if(defects[i][k][3]>13*256){
+                                 /*   int p_start=defects[i][k][0];   */
+                                    int p_end=defects[i][k][1];
+                                    int p_far=defects[i][k][2];
+                                    defectPoint[i].push_back(contours[i][p_far]);
+                                    circle(img_roi,contours[i][p_end],3,Scalar(0,255,0),2);
+                                    count++;
+                                }
+
+                            }
+
+                            if(count==1)
+                                strcpy(a,"1");
+                            else if(count==2)
+                                strcpy(a,"2");
+                            else if(count==3)
+                                strcpy(a,"3");
+                            else if(count==4)
+                                strcpy(a,"4");
+                            else if(count==5)
+                                strcpy(a,"5");
+                            else
+                                strcpy(a,"0");
+
+                            putText(img,a,Point(70,70),CV_FONT_HERSHEY_SIMPLEX,3,Scalar(255,0,0),2,8,false);
+                            drawContours(img_threshold, contours, i,Scalar(255,255,0),2, 8, vector<Vec4i>(), 0, Point() );
+                            drawContours(img_threshold, hullPoint, i, Scalar(255,255,0),1, 8, vector<Vec4i>(),0, Point());
+                            drawContours(img_roi, hullPoint, i, Scalar(0,0,255),2, 8, vector<Vec4i>(),0, Point() );
+                            approxPolyDP(contours[i],contours_poly[i],3,false);
+                            boundRect[i]=boundingRect(contours_poly[i]);
+                            rectangle(img_roi,boundRect[i].tl(),boundRect[i].br(),Scalar(255,0,0),2,8,0);
+                            minRect[i].points(rect_point);
+                            for(size_t k=0;k<4;k++){
+                                line(img_roi,rect_point[k],rect_point[(k+1)%4],Scalar(0,255,0),2,8);
+                            }
+
+                        }
+                    }
+
+                }
+            imshow("Original_image",img);
+            //imshow("Gray_image",img_gray);
+            imshow("Thresholded_image",img_threshold);
+            //imshow("ROI",img_roi);
+            if(waitKey(1)==27){
+                  return -1;
+             }
+
+        }
+
+    }
+
+     return 0;
 }
